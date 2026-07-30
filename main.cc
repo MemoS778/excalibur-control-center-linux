@@ -10,12 +10,13 @@
 
 static KeyboardController kbd;
 static OptimusSwitch gpu_switch;
+static CpuController cpu_controller;
 
 static void on_activate(GtkApplication *app, gpointer u_data)
 {
   const Locale* selected = static_cast<const Locale*>(u_data);
   
-  ExcaliburGUI* g = new ExcaliburGUI(app, kbd, selected, gpu_switch);
+  ExcaliburGUI* g = new ExcaliburGUI(app, kbd, selected, gpu_switch, cpu_controller);
   g->build();
 }
 

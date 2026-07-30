@@ -1,12 +1,7 @@
 #include "ui.hh"
-#include "locale.hh"
-#include <cmath>
-#include <fstream>
-#include <pwd.h>
-#include <unistd.h>
 
-ExcaliburGUI::ExcaliburGUI(GtkApplication* app, KeyboardController& kbd, const Locale* locale, OptimusSwitch& gpu_switch) 
-    : app_(app), kbd_(kbd), lang(locale), switch_(gpu_switch) {}
+ExcaliburGUI::ExcaliburGUI(GtkApplication* app, KeyboardController& kbd, const Locale* locale, OptimusSwitch& gpu_switch, CpuController& cpu_ctrl) 
+    : app_(app), kbd_(kbd), lang(locale), switch_(gpu_switch), cpu_ctrl_(cpu_ctrl) {}
 
 GtkWidget* create_ui_button(const char* label, const char* css_class = nullptr)
 {
@@ -98,6 +93,78 @@ void ExcaliburGUI::build()
   gtk_box_append(GTK_BOX(gpu_box), intel_btn);
   gtk_overlay_add_overlay(GTK_OVERLAY(o), gpu_box);
 
+  // --- CPU CONTROLLER ---
+
+  GtkWidget* cpu_btn = gtk_menu_button_new();
+  gtk_menu_button_set_label(GTK_MENU_BUTTON(cpu_btn), "CPU");
+  gtk_widget_set_halign(cpu_btn, GTK_ALIGN_CENTER);
+  gtk_widget_set_valign(cpu_btn, GTK_ALIGN_START);
+  gtk_widget_set_margin_start(cpu_btn, 500);
+  gtk_widget_set_margin_end(cpu_btn, -70);
+  gtk_widget_set_margin_top(cpu_btn, 20);
+
+  GtkWidget* popover = gtk_popover_new();
+  GtkWidget* cpu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+  gtk_widget_set_margin_top(cpu_box, 10);
+  gtk_widget_set_margin_bottom(cpu_box, 10);
+  gtk_widget_set_margin_start(cpu_box, 20);
+  gtk_widget_set_margin_end(cpu_box, 10);
+  gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_LEFT);
+  gtk_widget_set_size_request(cpu_box, 200, -1);
+
+  uint8_t core_count = cpu_ctrl_.get_core_count();
+
+  GtkStringList* core_list = gtk_string_list_new(nullptr);
+  gtk_string_list_append(core_list, "All");
+
+  for(int i = 0; i < core_count; ++i)
+  {
+    gtk_string_list_append(core_list, ("CPU" + std::to_string(i)).c_str());
+  }
+
+  core_dropdown_ = gtk_drop_down_new(G_LIST_MODEL(core_list), nullptr);
+  gtk_box_append(GTK_BOX(cpu_box), core_dropdown_);
+
+  CpuLimits limits = cpu_ctrl_.get_cpu_limits(0);
+  gtk_box_append(GTK_BOX(cpu_box), gtk_label_new("Min Freq (MHz)"));
+  min_scale_ = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, limits.hw_min / 1000, limits.hw_max / 1000, 100);
+  gtk_range_set_value(GTK_RANGE(min_scale_), limits.hw_min / 1000);
+  gtk_scale_set_draw_value(GTK_SCALE(min_scale_), TRUE);
+  gtk_box_append(GTK_BOX(cpu_box), min_scale_);
+
+  gtk_box_append(GTK_BOX(cpu_box), gtk_label_new("Max Freq (MHz)"));
+  max_scale_ = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, limits.hw_min / 1000, limits.hw_max / 1000, 100);
+  gtk_range_set_value(GTK_RANGE(max_scale_), limits.hw_max / 1000);
+  gtk_scale_set_draw_value(GTK_SCALE(max_scale_), TRUE);
+  gtk_box_append(GTK_BOX(cpu_box), max_scale_);
+
+  GtkWidget* turbo_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+  gtk_box_append(GTK_BOX(turbo_row), gtk_label_new("Turbo Boost"));
+  turbo_switch_ = gtk_switch_new();
+  gtk_widget_set_halign(turbo_switch_, GTK_ALIGN_END);
+  gtk_widget_set_hexpand(turbo_switch_, TRUE);
+  gtk_box_append(GTK_BOX(turbo_row), turbo_switch_);
+  gtk_box_append(GTK_BOX(cpu_box), turbo_row);
+
+  GtkWidget* cpu_apply_btn = create_ui_button("Apply", "suggested-action");
+  g_signal_connect(cpu_apply_btn, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+    auto* self = static_cast<ExcaliburGUI*>(data);
+    guint sel = gtk_drop_down_get_selected(GTK_DROP_DOWN(self->core_dropdown_));
+    int core = (sel == 0) ? -1 : (int)(sel - 1);
+
+    uint32_t min_mhz = (uint32_t)gtk_range_get_value(GTK_RANGE(self->min_scale_));
+    uint32_t max_mhz = (uint32_t)gtk_range_get_value(GTK_RANGE(self->max_scale_));
+
+    self->cpu_ctrl_.set_cpu_freq(core, max_mhz * 1000, false);
+    self->cpu_ctrl_.set_cpu_freq(core, min_mhz * 1000, true);
+    self->cpu_ctrl_.set_intel_turbo(gtk_switch_get_active(GTK_SWITCH(self->turbo_switch_)));
+  }), this);
+  gtk_box_append(GTK_BOX(cpu_box), cpu_apply_btn);
+
+  gtk_popover_set_child(GTK_POPOVER(popover), cpu_box);
+  gtk_menu_button_set_popover(GTK_MENU_BUTTON(cpu_btn), popover);
+  gtk_overlay_add_overlay(GTK_OVERLAY(o), cpu_btn);
+
   // --- COLOR PATTERNS ---
   GtkWidget* right_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
   gtk_widget_set_valign(right_box, GTK_ALIGN_CENTER);
@@ -108,7 +175,7 @@ void ExcaliburGUI::build()
   KBPattern patterns[] = { KBPattern::SOLID, KBPattern::BREATHE, KBPattern::CYCLE, KBPattern::AMBILIGHT };
 
   GtkWidget* first_pattern = nullptr;
-  for(int i = 0; i < 4; i++) // DEAR SOFTWARE DEVELOPERS, DO NOT HARD CODE VALUES LIKE THIS.
+  for(int i = 0; i < 4; i++)
   {
     GtkWidget* b = gtk_toggle_button_new_with_label(pattern_labels[i]);
     if(i == 0) { first_pattern = b; }
