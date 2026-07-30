@@ -13,4 +13,4 @@
 
 [![A video about making these kind of things](https://www.youtube.com/watch?v=kM0D9CpnmQY)](https://www.youtube.com/watch?v=kM0D9CpnmQY)
 
-```g++ main.cc components/keyboard/keyboard.cc components/ui/ui.cc -o components/gpu/optimus.cc ecc -pthread $(pkg-config --cflags --libs gtk4)``` compile with this command.
+```g++ main.cc components/keyboard/keyboard.cc components/ui/ui.cc components/gpu/optimus.cc components/cpu/cpu.cc -o ecc -pthread $(pkg-config --cflags --libs gtk4)``` compile with this command.
