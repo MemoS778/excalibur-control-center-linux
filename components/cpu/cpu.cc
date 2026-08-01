@@ -3,8 +3,8 @@
 
 void CpuController::set_intel_turbo(bool b)
 {
-  if(b) { std::system("echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"); }
-  else  { std::system("echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"); }
+  if(b) { std::system("echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"); }
+  else  { std::system("echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"); }
 }
 
 bool CpuController::set_cpu_freq(uint32_t freq_khz, int core, bool l)
