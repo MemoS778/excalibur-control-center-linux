@@ -7,6 +7,8 @@
 
 <h3> Eğer Arch Linux kullanıyorsanız "make" ve "linux-headers", Debian kullanıyorsanız "make" ve "linux-headers-amd64" paketlerini indirdiğinizden emin olun. Aksi takdirde ekran kartı değişimi çalışmayacaktır.</h3>
 
+<p> G9xx serisinde çalışmamaktadır.</p>
+
 ```sudo ./ecc``` ile çalıştırınız.
 
 ![Türkçe arayüz](https://raw.githubusercontent.com/FeusX/ecc-for-linux/main/ecc.png)
