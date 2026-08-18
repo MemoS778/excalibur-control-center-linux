@@ -143,6 +143,7 @@ void ExcaliburGUI::build()
   turbo_switch_ = gtk_switch_new();
   gtk_widget_set_halign(turbo_switch_, GTK_ALIGN_END);
   gtk_widget_set_hexpand(turbo_switch_, TRUE);
+  gtk_switch_set_active(GTK_SWITCH(turbo_switch_), cpu_ctrl_.get_intel_turbo());
   gtk_box_append(GTK_BOX(turbo_row), turbo_switch_);
   gtk_box_append(GTK_BOX(cpu_box), turbo_row);
 

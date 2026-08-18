@@ -21,6 +21,7 @@ public:
   bool set_cpu_freq(uint32_t freq_khz, int core, bool l);
 
   void set_intel_turbo(bool b);
+  bool get_intel_turbo();
 
   uint8_t get_core_count();
 

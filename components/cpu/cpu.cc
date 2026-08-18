@@ -51,3 +51,12 @@ uint8_t CpuController::get_core_count()
 
   return count;
 }
+
+bool CpuController::get_intel_turbo()
+{
+  std::ifstream file("/sys/devices/system/cpu/intel_pstate/no_turbo");
+  if(!file.is_open()) { return false; }
+  std::string v;
+  std::getline(file, v);
+  return v == "0";
+}
