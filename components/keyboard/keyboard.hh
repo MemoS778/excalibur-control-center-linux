@@ -5,6 +5,7 @@
 #include <map>
 #include <cstdint>
 #include <mutex>
+#include <fstream>
 
 enum class ZoneID : uint8_t { ALL = 0x00, LEFT = 0x50, MID = 0x40, RIGHT = 0x30 };
 
