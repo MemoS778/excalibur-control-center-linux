@@ -26,7 +26,7 @@ const Locale TR = {
   "Dalga",
   "Ambiyans",
   "Uygula",
-  "Sakın terminalde rebootlayabileceğine dair bir mesaj çıkana kadar uygulamayı kapatma. Aksi takdirde sorumluluk kabul etmiyorum."
+  "Sakın terminalde rebootlayabileceğine dair bir mesaj çıkana kadar veya bu yazı gidene kadar uygulamayı kapatma. Aksi takdirde sorumluluk kabul etmiyorum."
 };
 
 const Locale EN = {
@@ -39,7 +39,7 @@ const Locale EN = {
   "Pulse",
   "Ambilight",
   "Apply",
-  "Don't ever close the app until terminal says you can reboot. Otherwise, I accept no responsibility."
+  "Don't ever close the app until terminal says you can reboot or this popup disappears. Otherwise, I accept no responsibility."
 };
 
 #endif
