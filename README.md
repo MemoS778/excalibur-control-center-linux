@@ -1,11 +1,9 @@
 # ecc-for-linux
 <h1> Excalibur Control Center Uygulamasının Linux Portu. </h1>
 
-<h2> Excalibur G870 model bir laptopu tersine mühendislikle inceledikten sonra geliştirdiğim uygulamadır.</h2>
-
-<h1> 2026'nın Temmuz ayı itibariyle ekran kartı değiştirme desteği gelmiştir. Fakat her yazılımda olduğu gibi, çalıştığına dair garanti vermiyorum.</h1>
-
 <h3> Eğer Arch Linux kullanıyorsanız "make" ve "linux-headers", Debian kullanıyorsanız "make" ve "linux-headers-amd64" paketlerini indirdiğinizden emin olun. Aksi takdirde ekran kartı değişimi çalışmayacaktır.</h3>
+
+<h3>Eğer Excalibur Laptop'ınızda 10xx, 20xx veya 30xx serisi ekran kartı varsa, MUX Switch teknolojisi olmadığı için ekran kartı değiştirme özelliği çalışmayabilir.</h3>
 
 <p> G9xx serisinde çalışmamaktadır.</p>
 
