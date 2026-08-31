@@ -1,4 +1,4 @@
-# ecc-for-linux
+# excalibur-control-center
 <h1> Excalibur Control Center Uygulamasının Linux Portu. </h1>
 
 <h3> Eğer Arch Linux kullanıyorsanız "make" ve "linux-headers", Debian kullanıyorsanız "make" ve "linux-headers-amd64" paketlerini indirdiğinizden emin olun. Aksi takdirde ekran kartı değişimi çalışmayacaktır.</h3>
