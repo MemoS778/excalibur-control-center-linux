@@ -22,7 +22,7 @@ static void on_activate(GtkApplication *app, gpointer u_data)
 
 int main(int argc, char **argv)
 {
-  if(!kbd.init())
+  if(!std::getenv("ECC_PREVIEW") && !kbd.init())
   { return -1; }
 
   const Locale* selected_locale;
