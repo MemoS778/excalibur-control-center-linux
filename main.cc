@@ -1,42 +1,21 @@
-#include <gtk/gtk.h>
-#include <unistd.h>
-#include <string>
-#include <fstream>
-
 #include "components/keyboard/keyboard.hh"
 #include "components/ui/ui.hh"
-#include "components/ui/locale.hh"
-#include "components/gpu/optimus.hh"
+#include <cstdlib>
+#include <gtk/gtk.h>
 
-static KeyboardController kbd;
-static OptimusSwitch gpu_switch;
-static CpuController cpu_controller;
-
-static void on_activate(GtkApplication *app, gpointer u_data)
-{
-  const Locale* selected = static_cast<const Locale*>(u_data);
-  
-  ExcaliburGUI* g = new ExcaliburGUI(app, kbd, selected, gpu_switch, cpu_controller);
-  g->build();
-}
-
-int main(int argc, char **argv)
-{
-  if(!std::getenv("ECC_PREVIEW") && !kbd.init())
-  { return -1; }
-
-  const Locale* selected_locale;
-  if(access(get_lang_path().c_str(), F_OK) == 0)
-  { selected_locale = &TR; }
-  else
-  { selected_locale = &EN; }
-
-  GtkApplication *app = gtk_application_new("com.feusx.excalibur", G_APPLICATION_DEFAULT_FLAGS);
-
-  g_signal_connect(app, "activate", G_CALLBACK(on_activate), (gpointer)selected_locale);
-
+int main(int argc, char **argv) {
+  KeyboardController kbd;
+  if (!std::getenv("ECC_PREVIEW") && !kbd.init())
+    return 1;
+  GtkApplication *app = gtk_application_new("io.github.MemoS778.ExcaliburRGB",
+                                            G_APPLICATION_DEFAULT_FLAGS);
+  ExcaliburGUI gui(app, kbd);
+  g_signal_connect(app, "activate",
+                   G_CALLBACK(+[](GtkApplication *, gpointer data) {
+                     static_cast<ExcaliburGUI *>(data)->build();
+                   }),
+                   &gui);
   int status = g_application_run(G_APPLICATION(app), argc, argv);
   g_object_unref(app);
-
-  return status;  
+  return status;
 }

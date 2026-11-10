@@ -13,3 +13,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev
       - name: Build
         run: make -j2
+      - name: Test profile format
+        run: make test

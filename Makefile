@@ -3,7 +3,7 @@ PKG_CONFIG ?= pkg-config
 CXXFLAGS ?= -O2 -Wall -Wextra -std=c++17
 GTK_CFLAGS := $(shell $(PKG_CONFIG) --cflags gtk4)
 GTK_LIBS := $(shell $(PKG_CONFIG) --libs gtk4)
-SOURCES := main.cc components/keyboard/keyboard.cc components/ui/ui.cc components/gpu/optimus.cc components/cpu/cpu.cc
+SOURCES := main.cc components/keyboard/keyboard.cc components/ui/ui.cc
 HEADERS := $(wildcard components/*/*.hh)
 
 .PHONY: all check-deps preview clean
@@ -16,3 +16,9 @@ preview: ecc
 	ECC_PREVIEW=1 ./ecc
 clean:
 	rm -f ecc
+
+.PHONY: test
+test:
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -I. tests/profile_test.cc -o build/profile-test
+	./build/profile-test

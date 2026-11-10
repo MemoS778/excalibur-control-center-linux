@@ -1,11 +1,11 @@
 #include "ui.hh"
+#include "profile.hh"
 #include <algorithm>
+#include <cstdlib>
+#include <sstream>
 
-ExcaliburGUI::ExcaliburGUI(GtkApplication *app, KeyboardController &kbd,
-                           const Locale *locale, OptimusSwitch &gpu_switch,
-                           CpuController &cpu_ctrl)
-    : app_(app), kbd_(kbd), switch_(gpu_switch), cpu_ctrl_(cpu_ctrl),
-      lang(locale) {
+ExcaliburGUI::ExcaliburGUI(GtkApplication *app, KeyboardController &kbd)
+    : app_(app), kbd_(kbd) {
   preview_ = std::getenv("ECC_PREVIEW") != nullptr;
 }
 
@@ -67,8 +67,8 @@ void ExcaliburGUI::apply_lighting() {
 }
 void ExcaliburGUI::build() {
   window_ = gtk_application_window_new(app_);
-  gtk_window_set_title(GTK_WINDOW(window_), "Excalibur Control Center");
-  gtk_window_set_default_size(GTK_WINDOW(window_), 1040, 600);
+  gtk_window_set_title(GTK_WINDOW(window_), "Excalibur RGB Control");
+  gtk_window_set_default_size(GTK_WINDOW(window_), 940, 640);
   auto *css = gtk_css_provider_new();
   gtk_css_provider_load_from_string(css, R"CSS(
  window {background:#101113;color:#d6d6d8;font-family:sans-serif;font-size:12px;}
@@ -93,7 +93,7 @@ void ExcaliburGUI::build() {
   g_object_unref(css);
   auto *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_window_set_child(GTK_WINDOW(window_), root);
-  auto *brand = gtk_label_new("◈  CONTROL CENTER                               "
+  auto *brand = gtk_label_new("◈  RGB CONTROL                               "
                               "       EXCALIBUR / LINUX");
   gtk_widget_add_css_class(brand, "brand");
   gtk_label_set_xalign(GTK_LABEL(brand), 0);
@@ -101,38 +101,9 @@ void ExcaliburGUI::build() {
   auto *body = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_vexpand(body, TRUE);
   gtk_box_append(GTK_BOX(root), body);
-  auto *nav = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-  gtk_widget_add_css_class(nav, "sidebar");
-  gtk_widget_set_size_request(nav, 125, -1);
-  gtk_box_append(GTK_BOX(body), nav);
-  auto *stack = gtk_stack_new();
-  gtk_widget_set_hexpand(stack, TRUE);
-  gtk_widget_set_vexpand(stack, TRUE);
-  auto *system_nav = gtk_toggle_button_new_with_label("◉\n\nSistem Modu");
-  auto *led_nav = gtk_toggle_button_new_with_label("☼\n\nLED Kontrol");
-  gtk_toggle_button_set_group(GTK_TOGGLE_BUTTON(system_nav),
-                              GTK_TOGGLE_BUTTON(led_nav));
-  for (auto *b : {system_nav, led_nav}) {
-    gtk_widget_add_css_class(b, "nav");
-    gtk_box_append(GTK_BOX(nav), b);
-    g_object_set_data(G_OBJECT(b), "stack", stack);
-  }
-  g_object_set_data(G_OBJECT(system_nav), "page", (gpointer) "system");
-  g_object_set_data(G_OBJECT(led_nav), "page", (gpointer) "led");
-  for (auto *b : {system_nav, led_nav})
-    g_signal_connect(
-        b, "toggled",
-        reinterpret_cast<GCallback>(+[](GtkToggleButton *b, gpointer) {
-          if (gtk_toggle_button_get_active(b))
-            gtk_stack_set_visible_child_name(
-                GTK_STACK(g_object_get_data(G_OBJECT(b), "stack")),
-                static_cast<const char *>(
-                    g_object_get_data(G_OBJECT(b), "page")));
-        }),
-        nullptr);
-  gtk_box_append(GTK_BOX(body), stack);
   auto *led = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_stack_add_named(GTK_STACK(stack), led, "led");
+  gtk_widget_set_hexpand(led, TRUE);
+  gtk_box_append(GTK_BOX(body), led);
   auto *center = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_set_hexpand(center, TRUE);
   gtk_box_append(GTK_BOX(led), center);
@@ -160,6 +131,7 @@ void ExcaliburGUI::build() {
           }
         }),
         this);
+    zone_buttons_[i] = b;
     gtk_box_append(GTK_BOX(zones), b);
     if (i == 3)
       zone_all_ = b;
@@ -175,12 +147,33 @@ void ExcaliburGUI::build() {
   gtk_widget_add_css_class(foot, "footer");
   gtk_box_append(GTK_BOX(center), foot);
   gtk_box_append(GTK_BOX(foot),
-                 gtk_label_new("EXCALIBUR G870  /  RGB AYDINLATMA"));
+                 gtk_label_new("EXCALIBUR  /  KLAVYE AYDINLATMASI"));
   status_ =
       gtk_label_new(preview_ ? "Önizleme · donanım değiştirilmiyor"
                              : "Rengi ve bölgeyi seçip Uygula düğmesine basın");
   gtk_widget_add_css_class(status_, "muted");
+  gtk_label_set_wrap(GTK_LABEL(status_), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(status_), 60);
   gtk_box_append(GTK_BOX(foot), status_);
+  auto *profiles = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  gtk_box_append(GTK_BOX(foot), profiles);
+  const char *slots[] = {"Profil 1", "Profil 2", "Profil 3", nullptr};
+  profile_slot_ = gtk_drop_down_new_from_strings(slots);
+  gtk_box_append(GTK_BOX(profiles), profile_slot_);
+  auto *save = create_ui_button("Seçili ayarı kaydet");
+  auto *load = create_ui_button("Profili yükle");
+  gtk_box_append(GTK_BOX(profiles), save);
+  gtk_box_append(GTK_BOX(profiles), load);
+  g_signal_connect(save, "clicked",
+                   reinterpret_cast<GCallback>(+[](GtkButton *, gpointer d) {
+                     static_cast<ExcaliburGUI *>(d)->profile_action(true);
+                   }),
+                   this);
+  g_signal_connect(load, "clicked",
+                   reinterpret_cast<GCallback>(+[](GtkButton *, gpointer d) {
+                     static_cast<ExcaliburGUI *>(d)->profile_action(false);
+                   }),
+                   this);
   auto *right = gtk_box_new(GTK_ORIENTATION_VERTICAL, 16);
   gtk_widget_set_size_request(right, 260, -1);
   gtk_widget_add_css_class(right, "panel");
@@ -189,6 +182,7 @@ void ExcaliburGUI::build() {
   gtk_box_append(GTK_BOX(right), row);
   gtk_box_append(GTK_BOX(row), gtk_label_new("LED açık / kapalı"));
   auto *power = gtk_switch_new();
+  power_ = power;
   gtk_switch_set_active(GTK_SWITCH(power), TRUE);
   gtk_box_append(GTK_BOX(row), power);
   g_signal_connect(
@@ -196,7 +190,8 @@ void ExcaliburGUI::build() {
       reinterpret_cast<GCallback>(+[](GObject *b, GParamSpec *, gpointer d) {
         auto *s = static_cast<ExcaliburGUI *>(d);
         s->led_on_ = gtk_switch_get_active(GTK_SWITCH(b));
-        s->apply_lighting();
+        if (!s->loading_profile_)
+          s->apply_lighting();
       }),
       this);
   auto *grid = gtk_grid_new();
@@ -228,9 +223,11 @@ void ExcaliburGUI::build() {
           }
         }),
         this);
+    pattern_buttons_[i] = b;
     gtk_grid_attach(GTK_GRID(grid), b, i % 2, i / 2, 1, 1);
   }
   auto *wheel = gtk_drawing_area_new();
+  wheel_ = wheel;
   gtk_widget_set_size_request(wheel, 230, 230);
   gtk_widget_set_halign(wheel, GTK_ALIGN_CENTER);
   gtk_box_append(GTK_BOX(right), wheel);
@@ -293,6 +290,7 @@ void ExcaliburGUI::build() {
   gtk_widget_add_controller(wheel, GTK_EVENT_CONTROLLER(click));
   gtk_box_append(GTK_BOX(right), gtk_label_new("Parlaklık"));
   auto *scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 100, 1);
+  brightness_scale_ = scale;
   gtk_range_set_value(GTK_RANGE(scale), 50);
   gtk_scale_set_draw_value(GTK_SCALE(scale), TRUE);
   gtk_box_append(GTK_BOX(right), scale);
@@ -310,134 +308,6 @@ void ExcaliburGUI::build() {
                      static_cast<ExcaliburGUI *>(d)->apply_lighting();
                    }),
                    this);
-  auto *system_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 20);
-  gtk_widget_add_css_class(system_box, "panel");
-  gtk_stack_add_named(GTK_STACK(stack), system_box, "system");
-  gtk_box_append(GTK_BOX(system_box), gtk_label_new("SİSTEM MODU"));
-  GtkWidget *cpu_btn = gtk_menu_button_new();
-  gtk_menu_button_set_label(GTK_MENU_BUTTON(cpu_btn), "CPU");
-  GtkWidget *popover = gtk_popover_new();
-  GtkWidget *cpu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
-  gtk_widget_set_margin_top(cpu_box, 10);
-  gtk_widget_set_margin_bottom(cpu_box, 10);
-  gtk_widget_set_margin_start(cpu_box, 20);
-  gtk_widget_set_margin_end(cpu_box, 10);
-  gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_LEFT);
-  gtk_widget_set_size_request(cpu_box, 200, -1);
-
-  uint8_t core_count = cpu_ctrl_.get_core_count();
-
-  GtkStringList *core_list = gtk_string_list_new(nullptr);
-  gtk_string_list_append(core_list, "All");
-
-  for (int i = 0; i < core_count; ++i) {
-    gtk_string_list_append(core_list, ("CPU" + std::to_string(i)).c_str());
-  }
-
-  core_dropdown_ = gtk_drop_down_new(G_LIST_MODEL(core_list), nullptr);
-  gtk_box_append(GTK_BOX(cpu_box), core_dropdown_);
-
-  CpuLimits limits = cpu_ctrl_.get_cpu_limits(0);
-  gtk_box_append(GTK_BOX(cpu_box), gtk_label_new("Min Freq (MHz)"));
-  min_scale_ =
-      gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, limits.hw_min / 1000,
-                               limits.hw_max / 1000, 100);
-  gtk_range_set_value(GTK_RANGE(min_scale_), limits.hw_min / 1000);
-  gtk_scale_set_draw_value(GTK_SCALE(min_scale_), TRUE);
-  gtk_box_append(GTK_BOX(cpu_box), min_scale_);
-
-  gtk_box_append(GTK_BOX(cpu_box), gtk_label_new("Max Freq (MHz)"));
-  max_scale_ =
-      gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, limits.hw_min / 1000,
-                               limits.hw_max / 1000, 100);
-  gtk_range_set_value(GTK_RANGE(max_scale_), limits.hw_max / 1000);
-  gtk_scale_set_draw_value(GTK_SCALE(max_scale_), TRUE);
-  gtk_box_append(GTK_BOX(cpu_box), max_scale_);
-
-  GtkWidget *turbo_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-  gtk_box_append(GTK_BOX(turbo_row), gtk_label_new("Turbo Boost"));
-  turbo_switch_ = gtk_switch_new();
-  gtk_widget_set_halign(turbo_switch_, GTK_ALIGN_END);
-  gtk_widget_set_hexpand(turbo_switch_, TRUE);
-  gtk_switch_set_active(GTK_SWITCH(turbo_switch_), cpu_ctrl_.get_intel_turbo());
-  gtk_box_append(GTK_BOX(turbo_row), turbo_switch_);
-  gtk_box_append(GTK_BOX(cpu_box), turbo_row);
-
-  GtkWidget *cpu_apply_btn = create_ui_button("Apply", "suggested-action");
-  g_signal_connect(
-      cpu_apply_btn, "clicked",
-      reinterpret_cast<GCallback>(+[](GtkButton *, gpointer data) {
-        auto *self = static_cast<ExcaliburGUI *>(data);
-        if (self->preview_)
-          return;
-        guint sel =
-            gtk_drop_down_get_selected(GTK_DROP_DOWN(self->core_dropdown_));
-        int core = (sel == 0) ? -1 : (int)(sel - 1);
-
-        uint32_t min_mhz =
-            (uint32_t)gtk_range_get_value(GTK_RANGE(self->min_scale_));
-        uint32_t max_mhz =
-            (uint32_t)gtk_range_get_value(GTK_RANGE(self->max_scale_));
-
-        self->cpu_ctrl_.set_cpu_freq(max_mhz * 1000, core, false);
-        self->cpu_ctrl_.set_cpu_freq(min_mhz * 1000, core, true);
-        self->cpu_ctrl_.set_intel_turbo(
-            gtk_switch_get_active(GTK_SWITCH(self->turbo_switch_)));
-      }),
-      this);
-  gtk_box_append(GTK_BOX(cpu_box), cpu_apply_btn);
-
-  gtk_popover_set_child(GTK_POPOVER(popover), cpu_box);
-  gtk_menu_button_set_popover(GTK_MENU_BUTTON(cpu_btn), popover);
-  gtk_box_append(GTK_BOX(system_box), cpu_btn);
-
-  gtk_box_append(
-      GTK_BOX(system_box),
-      gtk_label_new(
-          "Ekran kartı seçimi sistem yapılandırmasını "
-          "değiştirir.\nDeğişiklikten sonra yeniden başlatma gerekebilir."));
-  for (int i = 0; i < 2; i++) {
-    auto *b = create_ui_button(i ? "NVIDIA ekran kartına geç"
-                                 : "Intel ekran kartına geç");
-    g_object_set_data(G_OBJECT(b), "gpu", GINT_TO_POINTER(i));
-    gtk_box_append(GTK_BOX(system_box), b);
-    g_signal_connect(
-        b, "clicked",
-        reinterpret_cast<GCallback>(+[](GtkButton *b, gpointer d) {
-          auto *s = static_cast<ExcaliburGUI *>(d);
-          if (s->preview_)
-            return;
-          int id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(b), "gpu"));
-          g_object_set_data(G_OBJECT(s->window_), "gpu", GINT_TO_POINTER(id));
-          auto *dialog = gtk_alert_dialog_new("Ekran kartı değiştirilsin mi?");
-          const char *buttons[] = {"Vazgeç", "Değiştir", nullptr};
-          gtk_alert_dialog_set_buttons(dialog, buttons);
-          gtk_alert_dialog_set_cancel_button(dialog, 0);
-          gtk_alert_dialog_set_default_button(dialog, 0);
-          gtk_alert_dialog_set_detail(
-              dialog, "Sistem ekran kartı ayarları değiştirilecek. Yeniden "
-                      "başlatma gerekebilir.");
-          gtk_alert_dialog_choose(
-              dialog, GTK_WINDOW(s->window_), nullptr,
-              +[](GObject *o, GAsyncResult *r, gpointer d) {
-                auto *s = static_cast<ExcaliburGUI *>(d);
-                GError *e = nullptr;
-                int choice =
-                    gtk_alert_dialog_choose_finish(GTK_ALERT_DIALOG(o), r, &e);
-                if (e) {
-                  g_error_free(e);
-                  return;
-                }
-                if (choice == 1)
-                  s->switch_.switch_gpus(GPOINTER_TO_INT(
-                      g_object_get_data(G_OBJECT(s->window_), "gpu")));
-              },
-              s);
-          g_object_unref(dialog);
-        }),
-        this);
-  }
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(led_nav), TRUE);
   gtk_window_present(GTK_WINDOW(window_));
 }
 
@@ -495,28 +365,124 @@ void ExcaliburGUI::on_draw(GtkDrawingArea *, cairo_t *cr, int width, int height,
   cairo_move_to(cr, 135, 325);
   cairo_show_text(cr, "AYDINLATMA ONIZLEMESI / 3 BOLGE");
 }
-std::string get_lang_path() {
-  const char *sudo_user = std::getenv("SUDO_USER");
-  std::string path;
 
-  if (sudo_user) {
-    struct passwd *pw = getpwnam(sudo_user);
-    if (pw)
-      path = pw->pw_dir;
-  } else {
-    const char *home = std::getenv("HOME");
-    if (home)
-      path = home;
+// File access runs as the invoking user, including when hardware access needs
+// sudo. This also keeps profiles user-owned and prevents root writes via user
+// paths.
+namespace {
+class ProfileUser {
+  uid_t old_uid = geteuid();
+  gid_t old_gid = getegid();
+
+public:
+  bool ready = false;
+  std::string directory;
+  ProfileUser() {
+    uid_t uid = getuid();
+    if (old_uid == 0) {
+      const char *value = std::getenv("SUDO_UID");
+      if (value) {
+        char *end = nullptr;
+        unsigned long n = std::strtoul(value, &end, 10);
+        if (!*value || *end || n > UINT32_MAX)
+          return;
+        uid = static_cast<uid_t>(n);
+      }
+    }
+    passwd *pw = getpwuid(uid);
+    if (!pw)
+      return;
+    directory = std::string(pw->pw_dir) + "/.config/excalibur-rgb-control";
+    if (old_uid == 0) {
+      if (setegid(pw->pw_gid) != 0)
+        return;
+      if (seteuid(uid) != 0) {
+        setegid(old_gid);
+        return;
+      }
+    }
+    ready = true;
   }
+  ~ProfileUser() {
+    if (geteuid() != old_uid && seteuid(old_uid) != 0)
+      std::abort();
+    if (getegid() != old_gid && setegid(old_gid) != 0)
+      std::abort();
+  }
+};
+} // namespace
 
-  if (path.empty())
-    return "/tmp/.ecc_lang";
-  return path + "/.cache/.ecc_lang";
-}
-
-void set_lang_en() { std::remove(get_lang_path().c_str()); }
-
-void set_lang_tr() {
-  std::ofstream file(get_lang_path());
-  file.close();
+void ExcaliburGUI::profile_action(bool save) {
+  LightingProfile p;
+  std::string message;
+  bool loaded = false;
+  {
+    ProfileUser user;
+    if (!user.ready)
+      message = "Profil dizinine erişilemedi.";
+    else {
+      auto path =
+          user.directory + "/profile-" +
+          std::to_string(
+              gtk_drop_down_get_selected(GTK_DROP_DOWN(profile_slot_)) + 1) +
+          ".conf";
+      if (save) {
+        p = {hue_,
+             sat_,
+             brightness_,
+             int(selected_zone),
+             int(selected_pattern),
+             led_on_ ? 1 : 0};
+        std::ostringstream out;
+        write_profile(out, p);
+        auto content = out.str();
+        GError *error = nullptr;
+        if (g_mkdir_with_parents(user.directory.c_str(), 0700) == 0 &&
+            g_file_set_contents_full(
+                path.c_str(), content.c_str(), content.size(),
+                G_FILE_SET_CONTENTS_CONSISTENT, 0600, &error))
+          message =
+              "Seçili bölgenin renk, efekt ve parlaklık ayarı kaydedildi.";
+        else
+          message = "Profil kaydedilemedi. Dizin izinlerini kontrol edin.";
+        if (error)
+          g_error_free(error);
+      } else {
+        std::ifstream in(path);
+        loaded = read_profile(in, p);
+        message =
+            loaded ? "Profil yüklendi. Klavyeye göndermek için Uygula'ya basın."
+                   : "Bu profil boş veya dosya geçersiz.";
+      }
+    }
+  }
+  if (loaded) {
+    loading_profile_ = true;
+    hue_ = p.hue;
+    sat_ = p.saturation;
+    brightness_ = p.brightness;
+    led_on_ = p.enabled;
+    selected_zone = ZoneID(p.zone);
+    selected_pattern = KBPattern(p.pattern);
+    double r, g, b;
+    hsv(hue_, sat_, r, g, b);
+    curr_r = r;
+    curr_g = g;
+    curr_b = b;
+    const int zones[] = {0x50, 0x40, 0x30, 0};
+    const int patterns[] = {1, 3, 6, 7};
+    for (int i = 0; i < 4; i++) {
+      if (p.zone == zones[i])
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(zone_buttons_[i]), TRUE);
+      if (p.pattern == patterns[i])
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pattern_buttons_[i]),
+                                     TRUE);
+    }
+    gtk_switch_set_active(GTK_SWITCH(power_), led_on_);
+    gtk_range_set_value(GTK_RANGE(brightness_scale_), brightness_ * 100);
+    gtk_widget_queue_draw(wheel_);
+    gtk_widget_queue_draw(drawing_area_);
+    loading_profile_ = false;
+  }
+  gtk_label_set_text(GTK_LABEL(status_), message.c_str());
 }
