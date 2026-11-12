@@ -11,7 +11,7 @@ Casper Excalibur dizüstü bilgisayarlar için C++ / GTK4 ile geliştirilen, top
 - Koyu tema, turuncu vurgular ve klavye aydınlatmasına odaklanan tek ekran.
 - Üç klavye bölgesi veya tüm bölgeler için renk seçimi.
 - Renk çemberi, şematik klavye önizlemesi ve parlaklık kontrolü.
-- Statik, nefes, renk döngüsü ve upstream Ambilight modu.
+- Statik, nefes, renk döngüsü ve donanım efekti (upstream 0x07 modu; ekran renklerini takip etmez).
 - Seçili bölge, renk, efekt, parlaklık ve açık/kapalı ayarını saklayan üç profil yuvası.
 - Donanım ayarı göndermeden arayüzü açmak için önizleme modu.
 
@@ -75,3 +75,19 @@ Orijinal Git geçmişi ve lisans dosyası korunur. Lisans: [GNU GPL v3](LICENSE)
 ## Geliştirme kontrolü
 
 `make test` profil kaydetme/okuma ve geçersiz dosya testlerini çalıştırır. `make` uygulamayı derler. Bu kontroller donanım uyumluluğu testi değildir.
+
+## Uygulama menüsünden açma
+
+```bash
+make install-user
+```
+
+Bu komutu **sudo olmadan** çalıştırın. Ardından uygulama menüsünde **Excalibur RGB Control** arayın. Başlatıcı, klavye erişimi için terminalde yönetici parolanızı ister ve GTK penceresini açar. Parola saklanmaz. Program hata ile kapanırsa terminal, hata çıktısını okuyabilmeniz için açık kalır.
+
+Kurulum dosyaları `~/.local/lib/excalibur-rgb-control/` altına kopyalanır. Yeni sürüm derledikten sonra `make install-user` komutunu tekrar çalıştırın; menüdeki kopya güncellenir. Profiller korunur. Menü girdisi kullanıcı veri dizininin `applications/` klasöründeki `io.github.MemoS778.ExcaliburRGB.desktop` dosyasıdır.
+
+Başlatıcı eklemek donanım uyumluluğunu değiştirmez; G870 üzerindeki renk değişimi sorununun çözümü hâlâ doğrulanmayı beklemektedir.
+
+## Komut zamanlaması
+
+Renk ve efekt komutları aynı kilit altında sıralanır. Mod değişiminden sonra 50 ms beklenir; hızlı Uygula tıklamaları 150 ms içinde birleştirilir. Bu süre donanım onayı değildir, geçiş komutuyla renk yazımının çakışma ihtimalini azaltan bir düzenlemedir. Tek tıklamada fiziksel LED yanıtı cihaz üzerinde ayrıca doğrulanmalıdır.

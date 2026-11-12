@@ -53,20 +53,61 @@ static void hsv(double h, double s, double &r, double &g, double &b) {
     b = q;
   }
 }
+ExcaliburGUI::~ExcaliburGUI() {
+  if (pending_apply_)
+    g_source_remove(pending_apply_);
+}
+
 void ExcaliburGUI::apply_lighting() {
+  // Coalesce rapid clicks before sending one complete hardware transaction.
+  if (pending_apply_)
+    g_source_remove(pending_apply_);
+  gtk_label_set_text(GTK_LABEL(status_), "Ayarlar gönderiliyor…");
+  pending_apply_ = g_timeout_add(
+      150,
+      +[](gpointer data) -> gboolean {
+        auto *self = static_cast<ExcaliburGUI *>(data);
+        self->pending_apply_ = 0;
+        if (self->window_)
+          self->send_lighting();
+        return G_SOURCE_REMOVE;
+      },
+      this);
+}
+
+void ExcaliburGUI::send_lighting() {
+  g_print("[RGB] preview=%d zone=0x%02x pattern=0x%02x rgb=%u,%u,%u "
+          "brightness=%u enabled=%d\n",
+          preview_, unsigned(selected_zone), unsigned(selected_pattern),
+          unsigned(curr_r * 255), unsigned(curr_g * 255),
+          unsigned(curr_b * 255), unsigned(brightness_ * 255), led_on_);
   if (!preview_) {
-    kbd_.set_color(curr_r * 255, curr_g * 255, curr_b * 255,
-                   led_on_ ? brightness_ * 255 : 0, selected_zone);
-    if (led_on_ && selected_pattern != KBPattern::SOLID)
-      kbd_.set_mode(selected_pattern);
+    bool ok = kbd_.apply(curr_r * 255, curr_g * 255, curr_b * 255,
+                         led_on_ ? brightness_ * 255 : 0, selected_zone,
+                         selected_pattern);
+    if (!ok) {
+      std::string message = "Klavyeye ayar gönderilemedi: " + kbd_.last_error();
+      gtk_label_set_text(GTK_LABEL(status_), message.c_str());
+      return;
+    }
   }
-  gtk_label_set_text(GTK_LABEL(status_),
-                     preview_ ? "Önizleme · donanım değiştirilmiyor"
-                              : "Aydınlatma ayarları uygulandı");
+  gtk_label_set_text(
+      GTK_LABEL(status_),
+      preview_ ? "Önizleme · donanım değiştirilmiyor"
+               : "Komutlar gönderildi; fiziksel klavye rengini kontrol edin.");
+  if (!preview_)
+    g_print("[RGB] EC writes completed; this does not confirm physical LED "
+            "response.\n");
   gtk_widget_queue_draw(drawing_area_);
 }
 void ExcaliburGUI::build() {
+  if (window_) {
+    gtk_window_present(GTK_WINDOW(window_));
+    return;
+  }
   window_ = gtk_application_window_new(app_);
+  g_object_add_weak_pointer(G_OBJECT(window_),
+                            reinterpret_cast<gpointer *>(&window_));
   gtk_window_set_title(GTK_WINDOW(window_), "Excalibur RGB Control");
   gtk_window_set_default_size(GTK_WINDOW(window_), 940, 640);
   auto *css = gtk_css_provider_new();
@@ -199,7 +240,7 @@ void ExcaliburGUI::build() {
   gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
   gtk_box_append(GTK_BOX(right), grid);
   const char *pn[] = {"☼  Statik", "≈  Nefes", "✳  Renk döngüsü",
-                      "▤  Ambilight"};
+                      "▤  Donanım efekti"};
   KBPattern pi[] = {KBPattern::SOLID, KBPattern::BREATHE, KBPattern::CYCLE,
                     KBPattern::AMBILIGHT};
   first = nullptr;
@@ -223,6 +264,13 @@ void ExcaliburGUI::build() {
           }
         }),
         this);
+    if (i == 3)
+      gtk_widget_set_tooltip_text(
+          b, "Klavyenin 0x07 efektini seçer. Ekran renklerini takip etmez; "
+             "destek modele bağlıdır.");
+    if (i == 2)
+      gtk_widget_set_tooltip_text(b, "Klavyenin otomatik renk döngüsü. "
+                                     "Seçtiğiniz sabit rengi kullanmayabilir.");
     pattern_buttons_[i] = b;
     gtk_grid_attach(GTK_GRID(grid), b, i % 2, i / 2, 1, 1);
   }

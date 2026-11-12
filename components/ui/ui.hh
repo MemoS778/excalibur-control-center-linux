@@ -13,11 +13,12 @@ class ExcaliburGUI {
 public:
   ExcaliburGUI(GtkApplication *app, KeyboardController &kbd);
   void build();
+  ~ExcaliburGUI();
 
 private:
   GtkApplication *app_;
   KeyboardController &kbd_;
-  GtkWidget *window_;
+  GtkWidget *window_ = nullptr;
   GtkWidget *drawing_area_;
   GtkWidget *profile_slot_ = nullptr, *power_ = nullptr;
   GtkWidget *wheel_ = nullptr, *brightness_scale_ = nullptr;
@@ -27,8 +28,10 @@ private:
   bool preview_ = false, led_on_ = true;
   double brightness_ = .5, hue_ = .07, sat_ = .85;
   GtkWidget *status_ = nullptr, *zone_all_ = nullptr;
+  guint pending_apply_ = 0;
   void apply_lighting();
-  float curr_r = 1.0, curr_g = .5, curr_b = .15;
+  void send_lighting();
+  float curr_r = 1.0, curr_g = .507, curr_b = .15;
 
   ZoneID selected_zone = ZoneID::ALL;
   KBPattern selected_pattern = KBPattern::SOLID;

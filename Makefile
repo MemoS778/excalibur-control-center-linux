@@ -22,3 +22,9 @@ test:
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -I. tests/profile_test.cc -o build/profile-test
 	./build/profile-test
+	$(CXX) $(CXXFLAGS) -I. tests/keyboard_test.cc components/keyboard/keyboard.cc -pthread -o build/keyboard-test
+	./build/keyboard-test
+
+.PHONY: install-user
+install-user: ecc
+	python3 packaging/install-user.py
