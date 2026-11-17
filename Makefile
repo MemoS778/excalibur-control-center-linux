@@ -24,7 +24,13 @@ test:
 	./build/profile-test
 	$(CXX) $(CXXFLAGS) -I. tests/keyboard_test.cc components/keyboard/keyboard.cc -pthread -o build/keyboard-test
 	./build/keyboard-test
+	$(CXX) $(CXXFLAGS) -I. tests/lighting_worker_test.cc -pthread -o build/lighting-worker-test
+	./build/lighting-worker-test
 
 .PHONY: install-user
 install-user: ecc
 	python3 packaging/install-user.py
+
+.PHONY: diagnose
+diagnose:
+	python3 packaging/diagnose.py

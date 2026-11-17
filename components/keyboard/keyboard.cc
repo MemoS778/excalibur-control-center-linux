@@ -37,7 +37,6 @@ bool KeyboardController::init() {
   }
 
   if (ec_fd == -1) {
-    std::cerr << "[WARNING] EC I/O not found, retrying..." << std::endl;
     ec_fd = open(EC_PATH, O_RDWR);
   }
 

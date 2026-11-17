@@ -5,7 +5,16 @@
 #include <sstream>
 
 ExcaliburGUI::ExcaliburGUI(GtkApplication *app, KeyboardController &kbd)
-    : app_(app), kbd_(kbd) {
+    : app_(app), kbd_(kbd), worker_([&kbd](LightingRequest r) {
+        const auto start = std::chrono::steady_clock::now();
+        bool ok = kbd.apply(r.r, r.g, r.b, r.brightness, r.zone, r.pattern);
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+        g_print("[RGB] backend=ec pattern=0x%02x result=%s elapsed_ms=%ld; "
+                "physical LED response unverified\n",
+                unsigned(r.pattern), ok ? "written" : "failed", long(elapsed));
+        return ok ? std::string{} : kbd.last_error();
+      }) {
   preview_ = std::getenv("ECC_PREVIEW") != nullptr;
 }
 
@@ -59,46 +68,39 @@ ExcaliburGUI::~ExcaliburGUI() {
 }
 
 void ExcaliburGUI::apply_lighting() {
-  // Coalesce rapid clicks before sending one complete hardware transaction.
-  if (pending_apply_)
-    g_source_remove(pending_apply_);
-  gtk_label_set_text(GTK_LABEL(status_), "Ayarlar gönderiliyor…");
-  pending_apply_ = g_timeout_add(
-      150,
-      +[](gpointer data) -> gboolean {
-        auto *self = static_cast<ExcaliburGUI *>(data);
-        self->pending_apply_ = 0;
-        if (self->window_)
-          self->send_lighting();
-        return G_SOURCE_REMOVE;
-      },
-      this);
-}
-
-void ExcaliburGUI::send_lighting() {
   g_print("[RGB] preview=%d zone=0x%02x pattern=0x%02x rgb=%u,%u,%u "
           "brightness=%u enabled=%d\n",
           preview_, unsigned(selected_zone), unsigned(selected_pattern),
           unsigned(curr_r * 255), unsigned(curr_g * 255),
           unsigned(curr_b * 255), unsigned(brightness_ * 255), led_on_);
-  if (!preview_) {
-    bool ok = kbd_.apply(curr_r * 255, curr_g * 255, curr_b * 255,
-                         led_on_ ? brightness_ * 255 : 0, selected_zone,
-                         selected_pattern);
-    if (!ok) {
-      std::string message = "Klavyeye ayar gönderilemedi: " + kbd_.last_error();
-      gtk_label_set_text(GTK_LABEL(status_), message.c_str());
-      return;
-    }
+  if (preview_) {
+    gtk_label_set_text(GTK_LABEL(status_), "Önizleme · donanım değiştirilmiyor");
+    gtk_widget_queue_draw(drawing_area_);
+    return;
   }
-  gtk_label_set_text(
-      GTK_LABEL(status_),
-      preview_ ? "Önizleme · donanım değiştirilmiyor"
-               : "Komutlar gönderildi; fiziksel klavye rengini kontrol edin.");
-  if (!preview_)
-    g_print("[RGB] EC writes completed; this does not confirm physical LED "
-            "response.\n");
-  gtk_widget_queue_draw(drawing_area_);
+  worker_.submit({uint8_t(curr_r * 255), uint8_t(curr_g * 255),
+                  uint8_t(curr_b * 255), uint8_t(led_on_ ? brightness_ * 255 : 0),
+                  selected_zone, selected_pattern});
+  gtk_label_set_text(GTK_LABEL(status_), "Ayarlar gönderiliyor…");
+  if (!pending_apply_)
+    pending_apply_ = g_timeout_add(20, +[](gpointer data) -> gboolean {
+      auto *self = static_cast<ExcaliburGUI *>(data);
+      if (self->window_ && self->poll_lighting()) return G_SOURCE_CONTINUE;
+      self->pending_apply_ = 0;
+      return G_SOURCE_REMOVE;
+    }, this);
+}
+
+bool ExcaliburGUI::poll_lighting() {
+  auto result = worker_.poll();
+  if (result && !worker_.busy()) {
+    const std::string message = result->empty()
+        ? "Komutlar gönderildi; fiziksel klavye rengini kontrol edin."
+        : "Klavyeye ayar gönderilemedi: " + *result;
+    gtk_label_set_text(GTK_LABEL(status_), message.c_str());
+    gtk_widget_queue_draw(drawing_area_);
+  }
+  return worker_.busy();
 }
 void ExcaliburGUI::build() {
   if (window_) {
@@ -124,7 +126,7 @@ void ExcaliburGUI::build() {
  .footer {background:#202224;padding:14px;border-top:1px solid #37393b;}
  .muted {color:#93979e;font-size:11px;}
  .large {font-size:25px;font-weight:700;color:#f4f4f5;}
- scale highlight {background:#ec873c;} scale slider {background:#ffb775;min-width:12px;min-height:12px;}
+ scale highlight {background:#ec873c;} scale slider {background:#ffb775;min-width:20px;min-height:20px;padding:0;border:0;box-shadow:none;}
  switch:checked {background:#d77932;}
  popover contents {background:#25272b;color:#ddd;}
  )CSS");
@@ -240,7 +242,7 @@ void ExcaliburGUI::build() {
   gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
   gtk_box_append(GTK_BOX(right), grid);
   const char *pn[] = {"☼  Statik", "≈  Nefes", "✳  Renk döngüsü",
-                      "▤  Donanım efekti"};
+                      "▤  Efekt 0x07 (deneysel)"};
   KBPattern pi[] = {KBPattern::SOLID, KBPattern::BREATHE, KBPattern::CYCLE,
                     KBPattern::AMBILIGHT};
   first = nullptr;
@@ -266,8 +268,8 @@ void ExcaliburGUI::build() {
         this);
     if (i == 3)
       gtk_widget_set_tooltip_text(
-          b, "Klavyenin 0x07 efektini seçer. Ekran renklerini takip etmez; "
-             "destek modele bağlıdır.");
+          b, "Bu EC komutunun G870/CQ171 üzerinde animasyon başlattığı "
+             "doğrulanmadı; yalnızca seçili renk görünebilir. Ekranı takip etmez.");
     if (i == 2)
       gtk_widget_set_tooltip_text(b, "Klavyenin otomatik renk döngüsü. "
                                      "Seçtiğiniz sabit rengi kullanmayabilir.");
@@ -461,6 +463,11 @@ public:
 } // namespace
 
 void ExcaliburGUI::profile_action(bool save) {
+  // ProfileUser changes process credentials; never overlap this with EC I/O.
+  if (worker_.busy()) {
+    gtk_label_set_text(GTK_LABEL(status_), "Profil işlemi için gönderimin bitmesini bekleyin.");
+    return;
+  }
   LightingProfile p;
   std::string message;
   bool loaded = false;

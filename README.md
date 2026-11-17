@@ -11,7 +11,7 @@ Casper Excalibur dizüstü bilgisayarlar için C++ / GTK4 ile geliştirilen, top
 - Koyu tema, turuncu vurgular ve klavye aydınlatmasına odaklanan tek ekran.
 - Üç klavye bölgesi veya tüm bölgeler için renk seçimi.
 - Renk çemberi, şematik klavye önizlemesi ve parlaklık kontrolü.
-- Statik, nefes, renk döngüsü ve donanım efekti (upstream 0x07 modu; ekran renklerini takip etmez).
+- Statik, nefes, renk döngüsü ve deneysel 0x07 seçeneği (CQ171 üzerinde animasyonu doğrulanmadı; ekran renklerini takip etmez).
 - Seçili bölge, renk, efekt, parlaklık ve açık/kapalı ayarını saklayan üç profil yuvası.
 - Donanım ayarı göndermeden arayüzü açmak için önizleme modu.
 
@@ -90,4 +90,12 @@ Başlatıcı eklemek donanım uyumluluğunu değiştirmez; G870 üzerindeki renk
 
 ## Komut zamanlaması
 
-Renk ve efekt komutları aynı kilit altında sıralanır. Mod değişiminden sonra 50 ms beklenir; hızlı Uygula tıklamaları 150 ms içinde birleştirilir. Bu süre donanım onayı değildir, geçiş komutuyla renk yazımının çakışma ihtimalini azaltan bir düzenlemedir. Tek tıklamada fiziksel LED yanıtı cihaz üzerinde ayrıca doğrulanmalıdır.
+Renk ve efekt komutları aynı kilit altında, arka plan işçisinde sıralanır; GTK ana döngüsü EC işlemini beklemez. Bir işlem çalışırken yalnızca en son bekleyen ayar tutulur. Aktif ayara tekrar basmak aynı işlemin kopyalarını biriktirmez. Mod değişimindeki 50 ms bekleme donanım onayı değildir. Mevcut EC yolu hâlâ önce statik rengi, ardından efekti yazar; tek tıklamada fiziksel LED yanıtı doğrulanmayı beklemektedir.
+
+İşlem sürerken profil kaydetme/yükleme için bitişi bekleyin. Kapanış, aktif donanım işleminin tamamlanmasını bekler. Loglar backend, mod, yazma sonucu ve süreyi gösterir; fiziksel efektin çalıştığını doğrulamaz.
+
+## G870 araştırması ve tanı
+
+Kaynak karşılaştırması, yapılan değişiklikler ve kalan doğrulamalar: [G870 RGB incelemesi](docs/G870-RGB-RESEARCH.md).
+
+`make diagnose` model/BIOS, WMI/LED arabirimleri ve proje/kurulu ikili özetlerini salt okunur biçimde gösterir; sudo gerektirmez. Donanım veya sensör sorgusu göndermez. Proje ikilisini derlemek menüdeki kurulu kopyayı güncellemez; bunun için `make install-user` gerekir.

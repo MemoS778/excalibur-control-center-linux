@@ -2,6 +2,7 @@
 #define UI_HH
 
 #include "../keyboard/keyboard.hh"
+#include "../keyboard/lighting_worker.hh"
 #include <cmath>
 #include <fstream>
 #include <gtk/gtk.h>
@@ -18,6 +19,7 @@ public:
 private:
   GtkApplication *app_;
   KeyboardController &kbd_;
+  LightingWorker worker_;
   GtkWidget *window_ = nullptr;
   GtkWidget *drawing_area_;
   GtkWidget *profile_slot_ = nullptr, *power_ = nullptr;
@@ -30,7 +32,7 @@ private:
   GtkWidget *status_ = nullptr, *zone_all_ = nullptr;
   guint pending_apply_ = 0;
   void apply_lighting();
-  void send_lighting();
+  bool poll_lighting();
   float curr_r = 1.0, curr_g = .507, curr_b = .15;
 
   ZoneID selected_zone = ZoneID::ALL;
